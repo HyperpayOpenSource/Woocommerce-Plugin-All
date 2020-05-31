@@ -658,11 +658,14 @@ function hyperpay_mada_init_gateway_class()
             curl_close($ch);
             $responseData_array = json_decode($responseData,true);
             $status = 'Hyperpay Refund : '.$responseData_array['result']['description'];
+
             $rf_status = false;
 
             if(isset($responseData_array['resultDetails']['ExtendedDescription'])){
-                if ($responseData_array['resultDetails']['ExtendedDescription'] == 'Approved'){
-                    $status = $status . $responseData_array['resultDetails']['ExtendedDescription'] . ' . Amount : ' . (floatval($responseData_array['resultDetails']['RefundedAmount'])/100).$order->get_currency();
+                if ($responseData_array['resultDetails']['ExtendedDescription'] == 'Approved'
+                    ||
+                    $responseData_array['resultDetails']['ExtendedDescription'] == 'Successfully processed'){
+                    $status = $status . $responseData_array['resultDetails']['ExtendedDescription'] . ' . Amount : ' . (floatval($responseData_array['amount'])).$order->get_currency();
                     $rf_status = true;
                 }
                 else {
