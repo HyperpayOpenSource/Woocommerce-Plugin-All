@@ -456,6 +456,10 @@ function hyperpay_stcpay_init_gateway_class()
                 $data .= "&testMode=EXTERNAL";
             }
 
+            if($this->testmode == 1){
+                $data .= "&testMode=INTERNAL";
+            }
+
             if ($this->connector_type == 'VISA_ACP') {
                 $data .= "&billing.street1=$street";
                 $data .= "&billing.city=$city";
@@ -560,7 +564,7 @@ function hyperpay_stcpay_init_gateway_class()
             $data = "entityId=".$this->entityid.
                 "&amount=".$amount.
                 "&currency=".$order->get_currency().
-                "&paymentType=".'RF';
+                "&paymentType=".'RV';
 
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
@@ -576,6 +580,8 @@ function hyperpay_stcpay_init_gateway_class()
             }
             curl_close($ch);
             $responseData_array = json_decode($responseData,true);
+            $order->add_order_note($responseData_array);
+
             $status = 'Hyperpay Refund : '.$responseData_array['result']['description'];
             $rf_status = false;
 
