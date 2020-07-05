@@ -582,15 +582,18 @@ function hyperpay_stcpay_init_gateway_class()
             $responseData_array = json_decode($responseData,true);
             $order->add_order_note($responseData_array);
 
-            $status = 'Hyperpay Refund : '.$responseData_array['result']['description'];
+            $status = 'Hyperpay Refund : ';
             $rf_status = false;
 
-            if(isset($responseData_array['resultDetails']['ExtendedDescription'])){
-                if ($responseData_array['resultDetails']['ExtendedDescription'] == 'Approved'){
-                    $status = $status . $responseData_array['resultDetails']['ExtendedDescription'] . ' . Amount : ' . (floatval($responseData_array['resultDetails']['RefundedAmount'])/100).$order->get_currency();
+            if(isset($responseData_array['result']['code'])){
+                $successCodePattern = '/^(000\.000\.|000\.100\.1|000\.[36])/';
+                $successManualReviewCodePattern = '/^(000\.400\.0|000\.400\.100)/';
+                if (preg_match($successCodePattern, $responseData_array['result']['code']) || preg_match($successManualReviewCodePattern, $responseData_array['result']['code'])){
+                    $status = $status . $responseData_array['result']['description'] . ' . Amount : ' .$responseData_array['amount'];
                     $rf_status = true;
                 }
                 else {
+                    $status = $status . "Failed";
                     $rf_status = false;
                 }
             }
