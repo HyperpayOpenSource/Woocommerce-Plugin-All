@@ -542,6 +542,11 @@ function hyperpayapplepay_init_gateway_class()
           *
           * */
         function process_refund($order_id, $amount = NULL, $reason = ''){
+            /*
+             * Roles Restriction
+             * */
+            if(!current_user_can('administrator')) return false;
+
             $order  = wc_get_order( $order_id );
             $trans = $order->get_meta('hyperpay_uniqueId');
 

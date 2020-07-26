@@ -287,17 +287,16 @@ function hyperpay_stcpay_init_gateway_class()
                         if ($sccuess == 1) {
                             WC()->session->set('hp_payment_retry', 0);
                             if ($order->status != 'completed') {
-                                $order->payment_complete();
-                                $woocommerce->cart->empty_cart();
-
-
-                                $uniqueId = $resultJson['id'];
-                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
                                 /*
                                  * Save transaction id
                                  *
                                  * */
+                                $uniqueId = $resultJson['id'];
                                 update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
+                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
+
+                                $order->payment_complete();
+                                $woocommerce->cart->empty_cart();
                             }
 
                             wp_redirect($this->get_return_url($order));
@@ -552,6 +551,11 @@ function hyperpay_stcpay_init_gateway_class()
          *
          * */
         function process_refund($order_id, $amount = NULL, $reason = ''){
+            /*
+             * Roles Restriction
+             * */
+            if(!current_user_can('administrator')) return false;
+
             $order  = wc_get_order( $order_id );
             $trans = $order->get_meta('hyperpay_uniqueId');
 

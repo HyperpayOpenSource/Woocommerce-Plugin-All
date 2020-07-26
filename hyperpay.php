@@ -6,7 +6,6 @@
   Version: 1.0
   Author: Hyperpay Team
   Ported to Oppwa By : Hyperpay Team
-
  */
 
 add_filter('woocommerce_payment_gateways', 'hyperpay_add_gateway_class');
@@ -39,7 +38,6 @@ add_action('plugins_loaded', 'hyperpay_init_gateway_class');
 
 function hyperpay_init_gateway_class()
 {
-
     class WC_Hyperpay_Gateway extends WC_Payment_Gateway
     {
         protected $msg = array();
@@ -337,11 +335,12 @@ function hyperpay_init_gateway_class()
                         if ($sccuess == 1) {
                             WC()->session->set('hp_payment_retry', 0);
                             if ($order->status != 'completed') {
+                                $uniqueId = $resultJson['id'];
+                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
+                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
+
                                 $order->payment_complete();
                                 $woocommerce->cart->empty_cart();
-
-
-                                $uniqueId = $resultJson['id'];
 
                                 if (isset($resultJson['registrationId'])) {
 
@@ -372,18 +371,6 @@ function hyperpay_init_gateway_class()
                                         );
                                     }
                                 }
-
-
-
-                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
-                                /*
-                                 * Save transaction id
-                                 *
-                                 * */
-                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
-                                //unset($_SESSION['order_awaiting_payment']);
-
-
                             }
 
                             wp_redirect($this->get_return_url($order));
@@ -392,7 +379,8 @@ function hyperpay_init_gateway_class()
                             /* return array('result'   => 'success',
                               'redirect'  => get_site_url().'/checkout/order-received/'.$order->id.'/?key='.$order->order_key );
                              */
-                        } else {
+                        }
+                        else {
                             $order->add_order_note($this->failed_message . $failed_msg);
                             $order->update_status('failed');
 
@@ -659,7 +647,7 @@ function hyperpay_init_gateway_class()
                     $has_parent = $page->post_parent;
                     while ($has_parent) {
                         $prefix .= ' - ';
-                        $next_page = get_page($has_parent);
+                        $next_page = get_post($has_parent);
                         $has_parent = $next_page->post_parent;
                     }
                 }
@@ -674,6 +662,11 @@ function hyperpay_init_gateway_class()
           *
           * */
         function process_refund($order_id, $amount = NULL, $reason = ''){
+            /*
+             * Roles Restriction
+             * */
+            if(!current_user_can('administrator')) return false;
+
             $order  = wc_get_order( $order_id );
             $trans = $order->get_meta('hyperpay_uniqueId');
 
