@@ -512,7 +512,6 @@ function hyperpay_init_gateway_class()
         {
             global $woocommerce;
 
-
             $order = new WC_Order($order_id);
 
             if ($order->get_customer_id() > 0 && get_current_user_id() == $order->get_customer_id()) {
@@ -539,7 +538,7 @@ function hyperpay_init_gateway_class()
             $type = $this->trans_type;
             $amount = number_format(round($orderAmount, 2), 2, '.', '');
             $currency = get_woocommerce_currency();
-            $transactionID = WC()->session->get('hp_payment_retry', 0) > 0 ? $orderid . '_' . WC()->session->get('hp_payment_retry', 0) : $orderid;
+            $transactionID = $orderid;
             $firstName = $order->get_billing_first_name();
             $family = $order->get_billing_last_name();
             $street = $order->get_billing_address_1();
