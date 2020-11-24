@@ -61,10 +61,10 @@ function hyperpay_mada_init_gateway_class()
             $this->script_url_test = "https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=";
             $this->token_url_test = "https://test.oppwa.com/v1/checkouts";
             $this->transaction_status_url_test = "https://test.oppwa.com/v1/checkouts/##TOKEN##/payment";
-            /*
-                        * Refund url
-                        *
-                        * */
+/*
+             * Refund url
+             *
+             * */
             $this->refund_url = "https://oppwa.com/v1/payments/";
             $this->refund_url_test = "https://test.oppwa.com/v1/payments/";
             /*
@@ -307,7 +307,8 @@ function hyperpay_mada_init_gateway_class()
                     $orderid = '';
 
                     if (isset($resultJson['merchantTransactionId'])) {
-                        $orderid = $resultJson['merchantTransactionId'];
+                        $orderid = explode('_', $resultJson['merchantTransactionId']);
+                        $orderid = $orderid[0];
                     }
 
                     $order_response = new WC_Order($orderid);
@@ -315,17 +316,12 @@ function hyperpay_mada_init_gateway_class()
                         if ($sccuess == 1) {
                             WC()->session->set('hp_payment_retry', 0);
                             if ($order->status != 'completed') {
-                                /*
-                                 * Save transaction id
-                                 *
-                                 * */
-                                $uniqueId = $resultJson['id'];
-                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
-                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
-
                                 $order->payment_complete();
                                 $woocommerce->cart->empty_cart();
 
+
+                                $uniqueId = $resultJson['id'];
+                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
                                 if (isset($resultJson['registrationId'])) {
 
                                     $registrationID = $resultJson['registrationId'];
@@ -355,6 +351,8 @@ function hyperpay_mada_init_gateway_class()
                                         );
                                     }
                                 }
+
+                                $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
                             }
 
                             wp_redirect($this->get_return_url($order));
@@ -364,7 +362,7 @@ function hyperpay_mada_init_gateway_class()
                              */
                         } else {
                             $order->add_order_note($this->failed_message . $failed_msg);
-                            $order->update_status('failed');
+                            $order->update_status('cancelled');
 
                             if ($this->lang == 'ar') {
 
@@ -377,7 +375,7 @@ function hyperpay_mada_init_gateway_class()
                         }
                     } else {
                         $order->add_order_note($this->failed_message);
-                        $order->update_status('failed');
+                        $order->update_status('cancelled');
                         if ($this->lang == 'ar') {
                             wc_add_notice(__('(حدث خطأ في عملية الدفع يرجى المحاولة مرة أخرى) '), 'error');
                         } else {
@@ -388,7 +386,7 @@ function hyperpay_mada_init_gateway_class()
                     }
                 } else {
                     $order->add_order_note($this->failed_message);
-                    $order->update_status('failed');
+                    $order->update_status('cancelled');
 
                     if ($this->lang == 'ar') {
                         wc_add_notice(__('(حدث خطأ في عملية الدفع يرجى المحاولة مرة أخرى) '), 'error');
@@ -398,11 +396,6 @@ function hyperpay_mada_init_gateway_class()
                     wc_print_notices();
                     $error = true;
                 }
-            }
-
-            if ($error) {
-                WC()->session->set('hp_payment_retry', WC()->session->get('hp_payment_retry', 0) + 1);
-                $this->renderPaymentForm($order, $this->process_payment($order->get_id())['token']);
             }
         }
 
@@ -452,7 +445,6 @@ function hyperpay_mada_init_gateway_class()
                 if ($this->lang == 'ar') {
                     echo '<style>
                             .wpwl-group{
-                            local: "ar",
                             direction:ltr !important;
                             }
                           </style>';
@@ -471,7 +463,6 @@ function hyperpay_mada_init_gateway_class()
 
 
             $order = new WC_Order($order_id);
-            $this->console_log($this->get_return_url($order));
 
             if ($order->get_customer_id() > 0 && get_current_user_id() == $order->get_customer_id()) {
                 //Registered
