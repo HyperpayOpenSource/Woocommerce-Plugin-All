@@ -40,6 +40,19 @@ function hyperpay_stcpay_init_gateway_class()
             $this->script_url_test = "https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=";
             $this->token_url_test = "https://test.oppwa.com/v1/checkouts";
             $this->transaction_status_url_test = "https://test.oppwa.com/v1/checkouts/##TOKEN##/payment";
+/*
+             * Refund url
+             *
+             * */
+            $this->refund_url = "https://oppwa.com/v1/payments/";
+            $this->refund_url_test = "https://test.oppwa.com/v1/payments/";
+            /*
+             * Add refund support
+             */
+            $this->supports           = array(
+                'products',
+                'refunds'
+            );
 
             $this->testmode = $this->settings['testmode'];
             $this->title = $this->settings['title'];
@@ -266,7 +279,8 @@ function hyperpay_stcpay_init_gateway_class()
                     $orderid = '';
 
                     if (isset($resultJson['merchantTransactionId'])) {
-                        $orderid = $resultJson['merchantTransactionId'];
+                        $orderid = explode('_', $resultJson['merchantTransactionId']);
+                        $orderid = $orderid[0];
                     }
 
                     $order_response = new WC_Order($orderid);
@@ -279,6 +293,7 @@ function hyperpay_stcpay_init_gateway_class()
 
 
                                 $uniqueId = $resultJson['id'];
+                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
                                 $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
                             }
 
@@ -518,6 +533,71 @@ function hyperpay_stcpay_init_gateway_class()
                 $js_code = '<script>' . $js_code . '</script>';
             }
             echo $js_code;
+        }
+
+        /*
+         * Refund Function
+         *
+         * */
+        function process_refund($order_id, $amount = NULL, $reason = ''){
+            /*
+             * Roles Restriction
+             * */
+            if(!current_user_can('administrator')) return false;
+
+            $order  = wc_get_order( $order_id );
+            $trans = $order->get_meta('hyperpay_uniqueId');
+
+            if ($this->testmode == 0) {
+                $url = $this->refund_url.$trans;
+            } else {
+                $url = $this->refund_url_test.$trans;
+            }
+
+            $data = "entityId=".$this->entityid.
+                "&amount=".$amount.
+                "&currency=".$order->get_currency().
+                "&paymentType=".'RV';
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                'Authorization:Bearer '.$this->accesstoken));
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);// this should be set to true in production
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            $responseData = curl_exec($ch);
+            if(curl_errno($ch)) {
+                return curl_error($ch);
+            }
+            curl_close($ch);
+            $responseData_array = json_decode($responseData,true);
+            $order->add_order_note($responseData_array);
+
+            $status = 'Hyperpay Refund : ';
+            $rf_status = false;
+
+            if(isset($responseData_array['result']['code'])){
+                $successCodePattern = '/^(000\.000\.|000\.100\.1|000\.[36])/';
+                $successManualReviewCodePattern = '/^(000\.400\.0|000\.400\.100)/';
+                if (preg_match($successCodePattern, $responseData_array['result']['code']) || preg_match($successManualReviewCodePattern, $responseData_array['result']['code'])){
+                    $status = $status . $responseData_array['result']['description'] . ' . Amount : ' .$responseData_array['amount'];
+                    $rf_status = true;
+                }
+                else {
+                    $status = $status . "Failed";
+                    $rf_status = false;
+                }
+            }
+
+            $order->add_order_note($status);
+            if($rf_status){
+                $order->add_order_note(__('Hyperpay : Refunded successfully. Refund Amount : ').$amount.$order->get_currency().__('. Refund Reason : ').$reason);
+            } else{
+                $order->add_order_note(__('Hyperpay : Refund failed.'));
+            }
+            return $rf_status;
         }
     }
 }
