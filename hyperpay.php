@@ -343,7 +343,8 @@ function hyperpay_init_gateway_class()
                     $orderid = '';
 
                     if (isset($resultJson['merchantTransactionId'])) {
-                        $orderid = $resultJson['merchantTransactionId'];
+			$orderid_array = explode( '-', $resultJson['merchantTransactionId'] );
+			$orderid       = isset( $orderid_array[0] ) ? $orderid_array[0] : $resultJson['merchantTransactionId'];
                     }
 
                     $order_response = new WC_Order($orderid);
@@ -562,7 +563,7 @@ function hyperpay_init_gateway_class()
             $type = $this->trans_type;
             $amount = number_format(round($orderAmount, 2), 2, '.', '');
             $currency = get_woocommerce_currency();
-            $transactionID = $orderid;
+            $transactionID = $orderid. '-' . wp_rand( 4, 10 );
             $firstName = $order->get_billing_first_name();
             $family = $order->get_billing_last_name();
             $street = $order->get_billing_address_1();
