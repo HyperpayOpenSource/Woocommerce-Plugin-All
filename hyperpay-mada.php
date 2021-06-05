@@ -52,6 +52,9 @@ function hyperpay_mada_init_gateway_class()
             $this->method_title = 'Hyperpay Mada Gateway';
             $this->method_description = 'Hyperpay Woocommerce plugin for Mada';
 
+            // making mada always on top by shifting the array using this function "woocommerce_add_WC_Hyperpay_Mada_Gateway"
+            add_filter( 'woocommerce_payment_gateways', 'woocommerce_add_WC_Hyperpay_Mada_Gateway' );
+
             $this->init_form_fields();
             $this->init_settings();
 
@@ -99,21 +102,58 @@ function hyperpay_mada_init_gateway_class()
                 $this->failed_message = 'تم رفض العملية ';
 
                 $this->success_message = 'تم إجراء عملية الدفع بنجاح.';
+
             } else {
                 $this->failed_message = 'Your transaction has been declined.';
 
-                $this->success_message = 'Your payment has been procssed successfully.';
+                $this->success_message = 'Your payment has been processed successfully.';
             }
 
             $this->msg['message'] = "";
             $this->msg['class'] = "";
 
+            // adding icon next gateway name in the checkout and change name based on lang using jQuery
+            add_filter( 'woocommerce_gateway_icon',  function ( $icon, $id ){
+                $icon_path = plugins_url('images/mada-logo.png', __FILE__);
+                $margin_style = ($this->lang === 'ar' ? 'margin-left: 50%;' : 'margin-right: 50%;');
+                
+                if($id === 'hyperpay_mada') {
+                    $icon = '<img id="woocommerce_gateway_icon_mada_hp" src="' . $icon_path . '" alt="Mada" style="width: 60px;height: 25px" width="60" height="25">';
+                }
+                
+                $icon .= '<script>
+                var lang = "'. $this->lang .'";
+                var title = "mada debit card";
+                if(lang == "ar"){
+                    title = "بطاقة مدى البنكية"
+                }
+                var $img = jQuery("#woocommerce_gateway_icon_mada_hp").clone();
+                jQuery(".payment_method_hyperpay_mada").find("label").text(title).append($img);
+                jQuery(".payment_method_hyperpay_mada").prependTo(".wc_payment_methods");
+                </script>';
+                return $icon;
+            }, 10, 2 );
+
             add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
             add_action('woocommerce_receipt_hyperpay_mada', array(&$this, 'receipt_page'));
+            // hard-code mada title
+            add_action( 'admin_print_footer_scripts', function () use ($lang) {
+              ?>
+              <script type="text/javascript">
+              jQuery(function ($) {
+                var lang = '<?php echo $lang; ?>';
+                var title = ( lang === 'ar' ? "بطاقة مدى البنكية" :'mada debit card');
+                $("#woocommerce_hyperpay_mada_title").val(title);
+              });
+              </script>`;
+              <?php
+          }, 50 );
         }
 
         public function init_form_fields()
         {
+            $lang = explode('-', get_bloginfo('language'));
+            $lang = $lang[0];
 
             $postbackURL = get_option('siteurl');
             $successURL = $postbackURL . '?hyperpay_mada_callback=1&success=1';
@@ -141,7 +181,8 @@ function hyperpay_mada_init_gateway_class()
                     'title' => __('Title:'),
                     'type' => 'text',
                     'description' => ' ' . __('This controls the title which the user sees during checkout.'),
-                    'default' => __('Mada')
+                    'default' => $lang === 'ar' ? __("بطاقة مدى البنكية") : __('mada debit card'),
+                    'custom_attributes' => array('readonly' => 'readonly'),
                 ),
                 'trans_type' => array(
                     'title' => __('Transaction type'),
@@ -255,8 +296,6 @@ function hyperpay_mada_init_gateway_class()
             return $hyperpay_mada_payment_style;
         }
 
-
-
         function receipt_page($order)
         {
             global $woocommerce;
@@ -316,12 +355,12 @@ function hyperpay_mada_init_gateway_class()
                         if ($sccuess == 1) {
                             WC()->session->set('hp_payment_retry', 0);
                             if ($order->status != 'completed') {
-                                $order->payment_complete();
-                                $woocommerce->cart->empty_cart();
-
-
                                 $uniqueId = $resultJson['id'];
                                 update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
+
+                                $order->payment_complete($uniqueId);
+                                $woocommerce->cart->empty_cart();
+
                                 if (isset($resultJson['registrationId'])) {
 
                                     $registrationID = $resultJson['registrationId'];
@@ -331,7 +370,7 @@ function hyperpay_mada_init_gateway_class()
 
                                     $registrationIDs = $wpdb->get_results(
                                         "
-                                                                         SELECT * 
+                                                                         SELECT *
                                                                      FROM wp_woocommerce_hyperpay_mada_saving_cards
                                                                          WHERE registration_id ='$registrationID'
                                                                          and mode = '" . $this->testmode . "'
@@ -433,26 +472,68 @@ function hyperpay_mada_init_gateway_class()
                 }
 
                 echo '<script>
-                            var wpwlOptions = {    
+
+                            function displayName(element) {
+                                jQuery(".wpwl-brand-card").each(function () {
+                                       jQuery(element).append(this);
+                                });
+                              }
+                            var wpwlOptions = {
                                 style:"' . $this->payment_style . '",
                                 locale:"' . $this->lang . '",
                                 paymentTarget: "_top",
-                                onReady: function() {' . $registration . '},
+                                onReady: function() {
+                                    jQuery(".wpwl-wrapper-cardNumber").each(function () {
+
+                                        displayName(this);
+                                    });
+                                    ' . $registration . '
+                                },
                             }
 
                     </script>';
+                echo '
+                       <style>
+                            .wpwl-brand-card{
+                                display:block ;
+                                visibility:visible ;
+                                position:absolute ;
+                                right:8px ;
+                                top:13px;
+                                width:65px ;
+                                z-index:10;
+                                float:right;
+                              }
+                            .wpwl-brand-MASTER{
+                                top:0px;
+                            }
+
+                            .wpwl-label-brand{
+                              display: none !important;
+                            }
+                            .wpwl-control-brand{
+                              display: none !important;
+                            }
+                    </style>
+                ';
+
                 //if the lang is Arabic change the direction to ltr
                 if ($this->lang == 'ar') {
                     echo '<style>
                             .wpwl-group{
                             direction:ltr !important;
                             }
+                            .wpwl-brand-card{
+                            left:8px  !important;
+                            right : auto !important;
+                            }
+
                           </style>';
-                };
+                }
+
                 // payment form
-                echo '<script  src="' . $scriptURL . '"></script>
-                        <form action="' . $postbackURL . '" class="paymentWidgets">
-                          ' . $payment_brands . '
+                echo '<script  src="' . $scriptURL . '"></script>';
+                echo '<form action="' . $postbackURL . '" class="paymentWidgets" data-brands="'. $payment_brands .'">
                         </form>';
             }
         }
@@ -519,6 +600,9 @@ function hyperpay_mada_init_gateway_class()
                 $data .= "&billing.city=$city";
                 $data .= "&billing.state=$state";
                 $data .= "&billing.country=$country";
+
+                $data .= "&customer.givenName=$firstName";
+                $data .= "&customer.surname=$family";
             }
 
             if ($this->tokenization == 'enable' && $this->is_registered_user == true) {
@@ -616,6 +700,19 @@ function hyperpay_mada_init_gateway_class()
 
             return $hyperpay_tokenization;
         }
+	
+	    function woocommerce_add_WC_Hyperpay_Mada_Gateway($methods) {
+		    array_unshift($methods, 'Hyperpay_Mada_Gateway' );
+		    return $methods;
+	    }
+	
+	    function custom_payment_gateway_icons( $icon, $gateway_id ){
+		    $icon_path = plugins_url('images/mada-logo.png',__FILE__);
+//            $icon =  '<i/mg src="' .  $icon_path. '" alt="' . esc_attr( $gateway_id ) . '" />';
+		
+		    return '<img src="'. $icon_path .'" alt="Mada" class="sv-wc-payment-gateway-icon wc-braintree-credit-card-payment-gateway-icon" style="width: 40px;height: 25px" width="40" height="25"><img src="/wp-content/uploads/2019/09/card-mastercard.svg" alt="mastercard" class="sv-wc-payment-gateway-icon wc-braintree-credit-card-payment-gateway-icon" style="width: 40px;height: 25px" width="40" height="25"><img src="/wp-content/uploads/2019/09/card-maestro.svg" alt="maestro" class="sv-wc-payment-gateway-icon wc-braintree-credit-card-payment-gateway-icon" style="width: 40px;height: 25px" width="40" height="25">';
+//            return $icon;
+	    }
 
         function process_refund($order_id, $amount = NULL, $reason = ''){
             /*

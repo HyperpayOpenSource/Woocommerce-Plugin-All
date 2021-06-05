@@ -288,12 +288,12 @@ function hyperpay_stcpay_init_gateway_class()
                         if ($sccuess == 1) {
                             WC()->session->set('hp_payment_retry', 0);
                             if ($order->status != 'completed') {
+                                $uniqueId = $resultJson['id'];
+                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
+
                                 $order->payment_complete();
                                 $woocommerce->cart->empty_cart();
 
-
-                                $uniqueId = $resultJson['id'];
-                                update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
                                 $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
                             }
 
