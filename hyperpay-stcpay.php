@@ -291,7 +291,7 @@ function hyperpay_stcpay_init_gateway_class()
                                 $uniqueId = $resultJson['id'];
                                 update_post_meta($order->get_id(),'hyperpay_uniqueId',$uniqueId);
 
-                                $order->payment_complete();
+                                $order->payment_complete($uniqueId);
                                 $woocommerce->cart->empty_cart();
 
                                 $order->add_order_note($this->success_message . 'Transaction ID: ' . $uniqueId);
